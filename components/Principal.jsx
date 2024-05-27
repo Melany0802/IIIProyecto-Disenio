@@ -3,11 +3,19 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, FlatList } from 'react-native';
 import { CheckBox } from '@rneui/themed'; // Importa CheckBox de @rneui/themed
 import axios from 'axios';
+import { Modal, TextInput, TouchableOpacity } from 'react-native';
+
 
 export default function Principal() {
   const [comidas, setComidas] = useState([]);
   const [selectedComida, setSelectedComida] = useState(null);
   const [selectedVariants, setSelectedVariants] = useState({}); // Estado para mantener las variantes seleccionadas
+  const [modalVisible, setModalVisible] = useState(false);
+  const [newIngredient, setNewIngredient] = useState({ cantidad: '', ingrediente: '', variantes: [''] });
+
+
+
+
 
   useEffect(() => {
     // Fetch the data from the provided URL
@@ -44,7 +52,7 @@ export default function Principal() {
 
   const renderInstrucciones = () => {
     if (!selectedComida || !selectedComida.instrucciones) return null;
-    
+
     const instrucciones = Object.entries(selectedComida.instrucciones)
       .filter(([key, value]) => value.trim() !== '') // Filtrar pasos no vacíos
       .map(([key, value]) => ({
@@ -64,6 +72,39 @@ export default function Principal() {
         ))}
       </View>
     );
+  };
+
+  const addVariant = () => {
+    setNewIngredient({ ...newIngredient, variantes: [...newIngredient.variantes, ''] });
+  };
+
+  const removeVariant = (index) => {
+    const updatedVariants = [...newIngredient.variantes];
+    updatedVariants.splice(index, 1);
+    setNewIngredient({ ...newIngredient, variantes: updatedVariants });
+  };
+  const handleVariantChange = (index, value) => {
+    const updatedVariants = [...newIngredient.variantes];
+    updatedVariants[index] = value;
+    setNewIngredient({ ...newIngredient, variantes: updatedVariants });
+  };
+  const handleInputChange = (name, value) => {
+    setNewIngredient({ ...newIngredient, [name]: value });
+  };  this
+
+  const handleAddIngredient = () => {
+    if (selectedComida) {
+      const newKey = `ingrediente${Object.keys(selectedComida).filter(key => key.startsWith('ingrediente')).length + 1}`;
+      const updatedComida = {
+        ...selectedComida,
+        [newKey]: { ...newIngredient.variantes.reduce((acc, curr, idx) => ({ ...acc, [`variante${idx + 1}`]: curr }), {}) },
+        [`cantidad${Object.keys(selectedComida).filter(key => key.startsWith('ingrediente')).length + 1}`]: newIngredient.cantidad,
+      };
+      setSelectedComida(updatedComida);
+      setComidas(comidas.map(comida => comida.id === selectedComida.id ? updatedComida : comida));
+      setModalVisible(false);
+      setNewIngredient({ cantidad: '', ingrediente: '', variantes: [''] });
+    }
   };
 
   return (
@@ -115,6 +156,8 @@ export default function Principal() {
             })}
           {renderInstrucciones()}
           <Text style={styles.button} onPress={() => setSelectedComida(null)}>Volver</Text>
+          <Text style={styles.button} onPress={() => setModalVisible(true)}>Agregar Ingrediente</Text>
+
         </View>
       ) : (
         <FlatList
@@ -125,6 +168,54 @@ export default function Principal() {
           )}
         />
       )}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Agregar Ingrediente</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Cantidad"
+              value={newIngredient.cantidad}
+              onChangeText={(text) => handleInputChange('cantidad', text)}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Ingrediente"
+              value={newIngredient.ingrediente}
+              onChangeText={(text) => handleInputChange('ingrediente', text)}
+            />
+            {newIngredient.variantes.map((variante, index) => (
+              <View key={index} style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Variante"
+                  value={variante}
+                  onChangeText={(text) => handleVariantChange(index, text)}
+                />
+                {index > 0 && (
+                  <TouchableOpacity onPress={() => removeVariant(index)} style={styles.removeButton}>
+                    <Text style={styles.removeButtonText}>Eliminar</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <TouchableOpacity onPress={addVariant} style={styles.addButton}>
+              <Text style={styles.buttonText}>Agregar Variante</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalButton} onPress={handleAddIngredient}>
+              <Text style={styles.buttonText}>Agregar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalButton} onPress={() => setModalVisible(false)}>
+              <Text style={styles.buttonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -224,16 +315,73 @@ const styles = StyleSheet.create({
   variantColumn: {
     flex: 1,
     alignItems: 'justificy', // Centra los elementos dentro de la columna
-  
-},
-instructionsContainer: {
-  marginTop: 20,
-},
-instructionText: {
-  fontSize: 16,
-  marginBottom: 5,
-},
-instructionTitle: {
-  fontWeight: 'bold',
-},
+
+  },
+  instructionsContainer: {
+    marginTop: 20,
+  },
+  instructionText: {
+    fontSize: 16,
+    marginBottom: 5,
+  },
+  instructionTitle: {
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: 300,
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  input: {
+    width: '100%',
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  modalButton: {
+    backgroundColor: '#007BFF',
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  removeButton: {
+    marginLeft: 10,
+  },
+  removeButtonText: {
+    color: 'red',
+  },
+  addButton: {
+    backgroundColor: '#007BFF',
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
 });

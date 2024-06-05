@@ -8,11 +8,13 @@ export default function Principal() {
   const [selectedComida, setSelectedComida] = useState(null);
   const [selectedVariants, setSelectedVariants] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
+  const [totalPriceModalVisible, setTotalPriceModalVisible] = useState(false);  // Nuevo estado
   const [newIngredient, setNewIngredient] = useState({ cantidad: '', ingrediente: '', variantes: [''] });
   const [extraInstruction, setExtraInstruction] = useState('');
   const [showExtraInstructionInput, setShowExtraInstructionInput] = useState(false);
   const [restriccionDietetica, setRestriccionDietetica] = useState('');
   const [showRestriccionInput, setShowRestriccionInput] = useState(false);
+  const [totalPrice, setTotalPrice] = useState(0);  // Nuevo estado
 
   useEffect(() => {
     axios.get('https://iiiproyectodisenio-default-rtdb.firebaseio.com/Comidas.json')
@@ -43,6 +45,18 @@ export default function Principal() {
     setSelectedVariants(newSelectedVariants);
   };
 
+  const calculateTotalPrice = () => {
+    let total = 0;
+    for (const key in selectedVariants) {
+      const precio = selectedComida[`precioV${selectedVariants[key].slice(8)}`];
+      if (precio) {
+        total += parseFloat(precio);
+      }
+    }
+    setTotalPrice(total);
+    setTotalPriceModalVisible(true);  // Mostrar el modal del precio total
+  };
+
   const renderInstrucciones = () => {
     if (!selectedComida || (!selectedComida.instrucciones && !selectedComida.instruccionExtra && !selectedComida.restriccionDietetica)) return null;
     const instrucciones = Object.entries(selectedComida.instrucciones || {})
@@ -51,7 +65,7 @@ export default function Principal() {
         paso: key,
         texto: value
       }));
-  
+
     return (
       <View>
         <Text style={styles.title}>Instrucciones de preparación</Text>
@@ -69,7 +83,7 @@ export default function Principal() {
       </View>
     );
   };
-  
+
 
   const addVariant = () => {
     setNewIngredient({ ...newIngredient, variantes: [...newIngredient.variantes, ''] });
@@ -175,7 +189,7 @@ export default function Principal() {
             <View style={styles.headerContainer}>
               <Text style={styles.headerText}>Cantidad</Text>
               <Text style={styles.headerText}>Ingredientes</Text>
-              <Text style={styles.headerText}>Precio</Text> 
+              <Text style={styles.headerText}>Precio</Text>
             </View>
             <View style={styles.separator} />
             {Object.keys(selectedComida)
@@ -193,7 +207,7 @@ export default function Principal() {
                         <View key={subIndex} style={styles.variantContainer}>
                           <CheckBox
                             checked={selectedVariants[key] === subKey}
-                            onPress={() => handleCheckboxToggle(key, subKey)}
+                            onPress={() => handleCheckboxToggle(key, subKey, precioVariante)}
                           />
                           <Text style={styles.variantText}>{variante}</Text>
                           <Text style={styles.variantPrice}>{precio}</Text>
@@ -213,6 +227,7 @@ export default function Principal() {
               })}
             <Text style={styles.button} onPress={() => setSelectedComida(null)}>Volver</Text>
             <Text style={styles.button} onPress={() => setModalVisible(true)}>Agregar Ingrediente</Text>
+            <Text style={styles.button} onPress={calculateTotalPrice}>Pedir</Text>
           </View>
 
           <View style={styles.detailsContainerInstructions}>
@@ -310,6 +325,23 @@ export default function Principal() {
           </View>
         </View>
       </Modal>
+      <Modal
+        visible={totalPriceModalVisible}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Total del Pedido</Text>  
+            <Text style={styles.modalText}>Total Price: ${totalPrice.toFixed(2)}</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={() => setTotalPriceModalVisible(false)}>
+              <Text style={styles.buttonText}>Cerrar</Text>
+            </TouchableOpacity>
+            
+
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 
@@ -317,6 +349,21 @@ export default function Principal() {
 
 
 const styles = StyleSheet.create({
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 35,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5
+  },
   container: {
     padding: 20,
   },
@@ -378,7 +425,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '',
     marginBottom: 20,
-  
+
   },
   imageContainer: {
     alignItems: 'center',
@@ -396,7 +443,7 @@ const styles = StyleSheet.create({
   headerText: {
     fontWeight: 'bold',
     fontSize: 16,
-    
+
   },
   ingredientContainer: {
     flexDirection: 'row',
@@ -415,12 +462,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: -50,
   },
-  
+
   variantText: {
     fontSize: 16,
     marginLeft: -10,
   },
- 
+
   blueText: {
     color: 'blue',
   },
@@ -433,7 +480,7 @@ const styles = StyleSheet.create({
   },
   instructionTitle: {
     fontWeight: 'bold',
-    
+
   },
   button: {
     color: 'blue',
@@ -461,7 +508,7 @@ const styles = StyleSheet.create({
   variantPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: 'auto', 
+    marginLeft: 'auto',
     color: 'green',
   },
 

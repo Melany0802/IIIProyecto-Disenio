@@ -1,24 +1,20 @@
-// Principal.jsx
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, FlatList } from 'react-native';
-import { CheckBox } from '@rneui/themed'; // Importa CheckBox de @rneui/themed
+import { StyleSheet, Text, View, ScrollView, Image, FlatList, TouchableOpacity, Modal, TextInput } from 'react-native';
 import axios from 'axios';
-import { Modal, TextInput, TouchableOpacity } from 'react-native';
-
+import { CheckBox } from '@rneui/themed';
 
 export default function Principal() {
   const [comidas, setComidas] = useState([]);
   const [selectedComida, setSelectedComida] = useState(null);
-  const [selectedVariants, setSelectedVariants] = useState({}); // Estado para mantener las variantes seleccionadas
+  const [selectedVariants, setSelectedVariants] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
   const [newIngredient, setNewIngredient] = useState({ cantidad: '', ingrediente: '', variantes: [''] });
-
-
-
-
+  const [extraInstruction, setExtraInstruction] = useState('');
+  const [showExtraInstructionInput, setShowExtraInstructionInput] = useState(false);
+  const [restriccionDietetica, setRestriccionDietetica] = useState('');
+  const [showRestriccionInput, setShowRestriccionInput] = useState(false);
 
   useEffect(() => {
-    // Fetch the data from the provided URL
     axios.get('https://iiiproyectodisenio-default-rtdb.firebaseio.com/Comidas.json')
       .then(response => {
         const fetchedComidas = [];
@@ -37,42 +33,43 @@ export default function Principal() {
     setSelectedComida(comida);
   };
 
-  // Función para manejar el cambio de estado de los checkboxes
   const handleCheckboxToggle = (ingredienteKey, varianteKey) => {
-    const newSelectedVariants = { ...selectedVariants }; // Crea una copia del estado actual de las variantes seleccionadas
+    const newSelectedVariants = { ...selectedVariants };
     if (newSelectedVariants[ingredienteKey] === varianteKey) {
-      // Si la variante ya estaba seleccionada, la va a deseleccionar
       delete newSelectedVariants[ingredienteKey];
     } else {
-      // Si la variante no estaba seleccionada, la va a seleccionar
       newSelectedVariants[ingredienteKey] = varianteKey;
     }
-    setSelectedVariants(newSelectedVariants); // Actualiza el estado de las variantes seleccionadas
+    setSelectedVariants(newSelectedVariants);
   };
 
   const renderInstrucciones = () => {
-    if (!selectedComida || !selectedComida.instrucciones) return null;
-
-    const instrucciones = Object.entries(selectedComida.instrucciones)
-      .filter(([key, value]) => value.trim() !== '') // Filtrar pasos no vacíos
+    if (!selectedComida || (!selectedComida.instrucciones && !selectedComida.instruccionExtra && !selectedComida.restriccionDietetica)) return null;
+    const instrucciones = Object.entries(selectedComida.instrucciones || {})
+      .filter(([key, value]) => value.trim() !== '')
       .map(([key, value]) => ({
         paso: key,
         texto: value
       }));
-
-    if (instrucciones.length === 0) return null;
-
+  
     return (
-      <View style={styles.instructionsContainer}>
+      <View>
         <Text style={styles.title}>Instrucciones de preparación</Text>
         {instrucciones.map((instr, index) => (
           <Text key={index} style={styles.instructionText}>
             <Text style={styles.instructionTitle}>{instr.paso}: </Text>{instr.texto}
           </Text>
         ))}
+        {selectedComida.instruccionExtra && (
+          <Text style={styles.title}>Mi instrucción: {selectedComida.instruccionExtra}</Text>
+        )}
+        {selectedComida.restriccionDietetica && (
+          <Text style={styles.title}>Mi Restricción Dietética: {selectedComida.restriccionDietetica}</Text>
+        )}
       </View>
     );
   };
+  
 
   const addVariant = () => {
     setNewIngredient({ ...newIngredient, variantes: [...newIngredient.variantes, ''] });
@@ -83,14 +80,16 @@ export default function Principal() {
     updatedVariants.splice(index, 1);
     setNewIngredient({ ...newIngredient, variantes: updatedVariants });
   };
+
   const handleVariantChange = (index, value) => {
     const updatedVariants = [...newIngredient.variantes];
     updatedVariants[index] = value;
     setNewIngredient({ ...newIngredient, variantes: updatedVariants });
   };
+
   const handleInputChange = (name, value) => {
     setNewIngredient({ ...newIngredient, [name]: value });
-  };  this
+  };
 
   const handleAddIngredient = () => {
     if (selectedComida) {
@@ -107,67 +106,162 @@ export default function Principal() {
     }
   };
 
+  const handleAddExtraInstruction = () => {
+    if (selectedComida) {
+      // Actualizar el estado local
+      setSelectedComida(prevState => ({ ...prevState, instruccionExtra: extraInstruction }));
+      // Enviar la actualización al servidor
+      axios.patch(`https://iiiproyectodisenio-default-rtdb.firebaseio.com/Comidas/${selectedComida.id}.json`, { instruccionExtra: extraInstruction })
+        .then(response => console.log('Instrucción extra agregada correctamente'))
+        .catch(error => console.error('Error al agregar instrucción extra:', error));
+      setShowExtraInstructionInput(false);
+      setExtraInstruction('');
+    }
+  };
+
+  const handleAddRestriccion = () => {
+    if (selectedComida) {
+      // Actualizar el estado local
+      setSelectedComida(prevState => ({ ...prevState, restriccionDietetica }));
+      // Enviar la actualización al servidor
+      axios.patch(`https://iiiproyectodisenio-default-rtdb.firebaseio.com/Comidas/${selectedComida.id}.json`, { restriccionDietetica })
+        .then(response => console.log('Restricción dietética agregada correctamente'))
+        .catch(error => console.error('Error al agregar restricción dietética:', error));
+      setShowRestriccionInput(false);
+      setRestriccionDietetica('');
+    }
+  };
+
+  const renderSection = (title, items) => (
+    <View style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.card} onPress={() => handlePress(item)}>
+            <Image source={{ uri: item.image || '/placeholder.svg' }} style={styles.cardImage} />
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{item.nombreComida}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+        horizontal={true}
+        showsHorizontalScrollIndicator={false}
+      />
+    </View>
+  );
+
+  const categorizedComidas = comidas.reduce((acc, comida) => {
+    const category = comida.category;
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(comida);
+    return acc;
+  }, {});
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {selectedComida ? (
-        <View style={styles.detailsContainer}>
-          <Text style={styles.title}>{selectedComida.nombreComida}</Text>
-          {selectedComida.image && (
-            <View style={styles.imageContainer}>
-              <Image source={{ uri: selectedComida.image }} style={styles.image} />
+        <View>
+          <View style={styles.detailsContainer}>
+            <Text style={styles.title}>{selectedComida.nombreComida}</Text>
+            {selectedComida.image && (
+              <View style={styles.imageContainer}>
+                <Image source={{ uri: selectedComida.image }} style={styles.image} />
+              </View>
+            )}
+            <View style={styles.headerContainer}>
+              <Text style={styles.headerText}>Cantidad</Text>
+              <Text style={styles.headerText}>Ingredientes</Text>
+              <Text style={styles.headerText}>Precio</Text> 
             </View>
-          )}
-          <View style={styles.headerContainer}>
-            <Text style={styles.headerText}>Cantidad</Text>
-            <Text style={styles.headerText}>Ingredientes</Text>
+            <View style={styles.separator} />
+            {Object.keys(selectedComida)
+              .filter(key => key.startsWith('ingrediente'))
+              .sort((a, b) => a.localeCompare(b))
+              .map((key, index) => {
+                const variantes = Object.keys(selectedComida[key])
+                  .filter(subKey => subKey.startsWith('variante'))
+                  .map((subKey, subIndex) => {
+                    const variante = selectedComida[key][subKey];
+                    const precioVariante = selectedComida[`precioV${subKey.slice(8)}`];
+                    if (variante && variante.trim() !== '') {
+                      const precio = precioVariante ? `$${precioVariante}` : '';
+                      return (
+                        <View key={subIndex} style={styles.variantContainer}>
+                          <CheckBox
+                            checked={selectedVariants[key] === subKey}
+                            onPress={() => handleCheckboxToggle(key, subKey)}
+                          />
+                          <Text style={styles.variantText}>{variante}</Text>
+                          <Text style={styles.variantPrice}>{precio}</Text>
+                        </View>
+                      );
+                    } else {
+                      return null;
+                    }
+                  });
+
+                return variantes.length > 0 ? (
+                  <View key={index} style={styles.ingredientContainer}>
+                    <Text style={styles.ingredientText}>{selectedComida['cantidad' + key.slice(11)]}</Text>
+                    <View style={styles.variantColumn}>{variantes}</View>
+                  </View>
+                ) : null;
+              })}
+            <Text style={styles.button} onPress={() => setSelectedComida(null)}>Volver</Text>
+            <Text style={styles.button} onPress={() => setModalVisible(true)}>Agregar Ingrediente</Text>
           </View>
-          {Object.keys(selectedComida)
-            .filter(key => key.startsWith('ingrediente'))
-            .sort((a, b) => a.localeCompare(b))
-            .map((key, index) => {
-              const variantes = Object.keys(selectedComida[key])
-                .filter(subKey => subKey.startsWith('variante'))
-                .map((subKey, subIndex) => {
-                  const variante = selectedComida[key][subKey];
-                  if (variante && variante.trim() !== '') { // Verifica si la variante no está en blanco
-                    return (
-                      <View key={subIndex} style={styles.variantContainer}>
-                        <CheckBox
-                          checked={selectedVariants[key] === subKey} // Comprueba si esta variante está seleccionada
-                          onPress={() => handleCheckboxToggle(key, subKey)} // Maneja el cambio de estado
-                        />
-                        <Text style={[styles.variantText, styles.blueText]}>
-                          {variante}
-                        </Text>
-                      </View>
-                    );
-                  } else {
-                    return null; // No renderiza el checkbox si la variante está en blanco
-                  }
-                });
 
-              // Renderizar solo si hay variantes disponibles
-              return variantes.length > 0 ? (
-                <View key={index} style={styles.ingredientContainer}>
-                  <Text style={styles.ingredientText}>{selectedComida['cantidad' + key.slice(11)]}</Text>
-                  <View style={styles.variantColumn}>{variantes}</View>
-                </View>
-              ) : null;
-            })}
-          {renderInstrucciones()}
-          <Text style={styles.button} onPress={() => setSelectedComida(null)}>Volver</Text>
-          <Text style={styles.button} onPress={() => setModalVisible(true)}>Agregar Ingrediente</Text>
+          <View style={styles.detailsContainerInstructions}>
+            {renderInstrucciones()}
+            <TouchableOpacity onPress={() => setShowExtraInstructionInput(true)} style={styles.addButton}>
+              <Text style={styles.buttonText}>Agregar Instrucción Adicional</Text>
+            </TouchableOpacity>
+            {showExtraInstructionInput && (
+              <TextInput
+                style={styles.input}
+                placeholder="Instrucción Adicional"
+                value={extraInstruction}
+                onChangeText={(text) => setExtraInstruction(text)}
+              />
+            )}
+            {showExtraInstructionInput && (
+              <TouchableOpacity style={styles.modalButton} onPress={handleAddExtraInstruction}>
+                <Text style={styles.buttonText}>Guardar</Text>
+              </TouchableOpacity>
+            )}
 
+            <TouchableOpacity onPress={() => setShowRestriccionInput(true)} style={styles.addButton}>
+              <Text style={styles.buttonText}>Agregar Restricción Dietética</Text>
+            </TouchableOpacity>
+            {showRestriccionInput && (
+              <TextInput
+                style={styles.input}
+                placeholder="Restricción Dietética"
+                value={restriccionDietetica}
+                onChangeText={(text) => setRestriccionDietetica(text)}
+              />
+            )}
+            {showRestriccionInput && (
+              <TouchableOpacity style={styles.modalButton} onPress={handleAddRestriccion}>
+                <Text style={styles.buttonText}>Guardar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       ) : (
-        <FlatList
-          data={comidas}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Text style={styles.item} onPress={() => handlePress(item)}>{item.nombreComida}</Text>
-          )}
-        />
+        <View>
+          {['Pastas', 'Arroces', 'Puré', 'Sopas', 'Ensaladas'].map(category => (
+            <View key={category}>
+              {categorizedComidas[category] && renderSection(category, categorizedComidas[category])}
+            </View>
+          ))}
+        </View>
       )}
+
       <Modal
         animationType="slide"
         transparent={true}
@@ -211,177 +305,212 @@ export default function Principal() {
               <Text style={styles.buttonText}>Agregar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalButton} onPress={() => setModalVisible(false)}>
-              <Text style={styles.buttonText}>Cancelar</Text>
+              <Text style={styles.buttonText}>Cerrar</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
     </ScrollView>
   );
+
 }
+
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
     padding: 20,
   },
-  item: {
-    fontSize: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    marginVertical: 8,
-    borderColor: '#ccc',
-    borderWidth: 1,
+  sectionContainer: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  card: {
+    backgroundColor: '#fff',
     borderRadius: 10,
+    marginRight: 10,
+    overflow: 'hidden',
+    width: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cardImage: {
+    height: 100,
+    width: '100%',
+  },
+  cardContent: {
+    padding: 10,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   detailsContainer: {
-    padding: 1,
-    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+
+  detailsContainerInstructions: {
+    padding: 20,
+    marginTop: 20,
+
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 2,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '',
     marginBottom: 20,
-    marginLeft: 30,
+  
   },
   imageContainer: {
     alignItems: 'center',
     marginBottom: 20,
   },
   image: {
-    width: 300,
-    height: 300,
-    resizeMode: 'cover',
-    borderRadius: 10,
-  },
-  button: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#007BFF',
-    borderRadius: 5,
-    color: '#fff',
-    fontSize: 18,
-    textAlign: 'center',
-  },
-  ingredientContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between', // Justifica el espacio entre los elementos
-    marginBottom: 2,
-    width: '100%', // Ocupa todo el ancho disponible
-    borderBottomWidth: 1, // Añade una línea separadora
-    borderBottomColor: '#ccc',
-    paddingVertical: 10,
-  },
-  ingredientText: {
-    marginLeft: 30,
-    alignItems: 'center',
-    justifyContent: 'center', // Centra los elementos horizontalmente
-    marginBottom: 1,
+    width: '100%',
+    height: 200,
   },
   headerContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 10,
-    justifyContent: 'space-between', // Justifica el espacio entre los elementos del encabezado
-    width: '100%', // Ocupa todo el ancho disponible
-    borderBottomWidth: 2, // Línea separadora para el encabezado
-    borderBottomColor: '#007BFF',
-    paddingBottom: 5,
   },
   headerText: {
     fontWeight: 'bold',
-    color: '#007BFF',
+    fontSize: 16,
+    
+  },
+  ingredientContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  ingredientText: {
+    fontSize: 16,
     flex: 1,
-    textAlign: 'justificy',
-    marginLeft: 30,
+  },
+  variantColumn: {
+    flex: 2,
   },
   variantContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'justificy', // Centra los elementos horizontalmente
-    marginBottom: 1,
-    marginLeft: 70,
+    marginLeft: -50,
   },
+  
   variantText: {
-    marginLeft: -15,
-    alignItems: 'justificy',
+    fontSize: 16,
+    marginLeft: -10,
   },
+ 
   blueText: {
-    color: '#007BFF',
-  },
-  variantColumn: {
-    flex: 1,
-    alignItems: 'justificy', // Centra los elementos dentro de la columna
-
+    color: 'blue',
   },
   instructionsContainer: {
     marginTop: 20,
   },
   instructionText: {
     fontSize: 16,
-    marginBottom: 5,
+    marginBottom: 10,
   },
   instructionTitle: {
     fontWeight: 'bold',
+    
+  },
+  button: {
+    color: 'blue',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 20,
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    width: 300,
-    padding: 20,
     backgroundColor: '#fff',
+    padding: 20,
     borderRadius: 10,
-    alignItems: 'center',
+    width: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 2,
   },
+  variantPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 'auto', 
+    color: 'green',
+  },
+
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
   },
   input: {
-    width: '100%',
-    padding: 10,
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  modalButton: {
-    backgroundColor: '#007BFF',
     padding: 10,
+    marginBottom: 10,
     borderRadius: 5,
-    marginTop: 10,
-    width: '100%',
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
   removeButton: {
     marginLeft: 10,
+    backgroundColor: 'red',
+    padding: 5,
+    borderRadius: 5,
   },
   removeButtonText: {
-    color: 'red',
+    color: '#fff',
   },
-  addButton: {
-    backgroundColor: '#007BFF',
+  addButton: { //botón de AgregarInstruccion
+    backgroundColor: 'green',
     padding: 10,
     borderRadius: 5,
-    marginTop: 10,
-    width: '100%',
     alignItems: 'center',
+    marginBottom: 10,
+  },
+  buttonText: { //Texto de agregarIntrucción
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  modalButton: {
+    backgroundColor: 'blue',
+    padding: 10,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  separator: {
+    borderBottomColor: '#ccc',
+    borderBottomWidth: 1,
+    marginVertical: 10,
   },
 });

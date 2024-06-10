@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, FlatList, TouchableOpacity, Modal, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Image, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import axios from 'axios';
 import { CheckBox } from '@rneui/themed';
+import { WebView } from 'react-native-webview';
+
 
 export default function Principal() {
   const [comidas, setComidas] = useState([]);
@@ -15,6 +17,41 @@ export default function Principal() {
   const [restriccionDietetica, setRestriccionDietetica] = useState('');
   const [showRestriccionInput, setShowRestriccionInput] = useState(false);
   const [totalPrice, setTotalPrice] = useState(0);  // Nuevo estado
+  const [VideoModalVisible, setVideoModalVisible] = useState(false);
+  const [pedidos, setPedidos] = useState([]);
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      axios.get('https://iiiproyectodisenio-default-rtdb.firebaseio.com/Pedidos.json')
+        .then(response => {
+          const fetchedPedidos = [];
+          for (const key in response.data) {
+            fetchedPedidos.push({
+              id: key,
+              ...response.data[key]
+            });
+          }
+          setPedidos(fetchedPedidos);
+
+        })
+        .catch(error => console.error(error));
+      console.log('Revisando pedidos...', pedidos);
+      for (const pedido of pedidos) {
+        if (pedido.estado != 'pendiente') {
+          Alert.alert('Pedido listo', `El pedido de ${pedido.comida} está listo para ser recogido`);
+          axios.delete(`https://iiiproyectodisenio-default-rtdb.firebaseio.com/Pedidos/${pedido.id}.json`)
+            .then(response => console.log('Pedido eliminado correctamente:', response))
+            .catch(error => console.error('Error al eliminar pedido:', error));
+        }
+      }
+
+    }, 10000); // Intervalo de 1 segundo
+
+    // Limpia el intervalo cuando el componente se desmonta o cuando el contador alcance cierto valor
+    return () => clearInterval(intervalo);
+  }, [pedidos]);
+
+
 
   useEffect(() => {
     axios.get('https://iiiproyectodisenio-default-rtdb.firebaseio.com/Comidas.json')
@@ -55,6 +92,21 @@ export default function Principal() {
     }
     setTotalPrice(total);
     setTotalPriceModalVisible(true);  // Mostrar el modal del precio total
+    createRequest();
+  };
+
+  const createRequest = () => {
+    const request = {
+      comida: selectedComida.nombreComida,
+      precio: totalPrice,
+      instrucciones: selectedComida.instrucciones,
+      restriccionDietetica: selectedComida.restriccionDietetica,
+      estado: 'pendiente',
+      ingredientes: Object.keys(selectedVariants).map(key => ({
+        ingrediente: selectedComida[key][selectedVariants[key]],
+      })),
+    };
+    axios.post('https://iiiproyectodisenio-default-rtdb.firebaseio.com/Pedidos.json', request).then(response => console.log('Pedido creado correctamente:', response)).catch(error => console.error('Error al crear pedido:', error));
   };
 
   const renderInstrucciones = () => {
@@ -147,7 +199,9 @@ export default function Principal() {
   };
 
   const renderSection = (title, items) => (
+
     <View style={styles.sectionContainer}>
+
       <Text style={styles.sectionTitle}>{title}</Text>
       <FlatList
         data={items}
@@ -174,6 +228,31 @@ export default function Principal() {
     acc[category].push(comida);
     return acc;
   }, {});
+
+  const WebModal = ({ visible, onClose }) => {
+    if (selectedComida !== null) {
+      return (
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={visible}
+          onRequestClose={onClose}
+        >
+          <View style={{ flex: 1 }}>
+            <WebView
+              source={{ uri: selectedComida.video }}
+              style={{ flex: 1 }}
+            />
+            <TouchableOpacity style={styles.modalButton} onPress={() => setVideoModalVisible(false)}>
+              <Text style={styles.buttonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      );
+    }
+  };
+
+
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -228,6 +307,7 @@ export default function Principal() {
             <Text style={styles.button} onPress={() => setSelectedComida(null)}>Volver</Text>
             <Text style={styles.button} onPress={() => setModalVisible(true)}>Agregar Ingrediente</Text>
             <Text style={styles.button} onPress={calculateTotalPrice}>Pedir</Text>
+            <Text style={styles.blueText} onPress={() => setVideoModalVisible(true)}>Ver Video</Text>
           </View>
 
           <View style={styles.detailsContainerInstructions}>
@@ -332,16 +412,17 @@ export default function Principal() {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Total del Pedido</Text>  
+            <Text style={styles.modalTitle}>Total del Pedido</Text>
             <Text style={styles.modalText}>Total Price: ${totalPrice.toFixed(2)}</Text>
             <TouchableOpacity style={styles.modalButton} onPress={() => setTotalPriceModalVisible(false)}>
               <Text style={styles.buttonText}>Cerrar</Text>
             </TouchableOpacity>
-            
+
 
           </View>
         </View>
       </Modal>
+      <WebModal visible={VideoModalVisible} />
     </ScrollView>
   );
 

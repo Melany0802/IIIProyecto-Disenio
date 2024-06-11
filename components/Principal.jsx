@@ -38,14 +38,14 @@ export default function Principal() {
       console.log('Revisando pedidos...', pedidos);
       for (const pedido of pedidos) {
         if (pedido.estado != 'pendiente') {
-          Alert.alert('Pedido listo', `El pedido de ${pedido.comida} está listo para ser recogido`);
+          Alert.alert('Pedido listo', `El pedido de ${pedido.nombreComida} está listo para ser recogido`);
           axios.delete(`https://iiiproyectodisenio-default-rtdb.firebaseio.com/Pedidos/${pedido.id}.json`)
             .then(response => console.log('Pedido eliminado correctamente:', response))
             .catch(error => console.error('Error al eliminar pedido:', error));
         }
       }
 
-    }, 10000); // Intervalo de 1 segundo
+    }, 15000); // Intervalo de 1 segundo
 
     // Limpia el intervalo cuando el componente se desmonta o cuando el contador alcance cierto valor
     return () => clearInterval(intervalo);
@@ -101,6 +101,7 @@ export default function Principal() {
       precio: totalPrice,
       instrucciones: selectedComida.instrucciones,
       restriccionDietetica: selectedComida.restriccionDietetica,
+      instruccionExtra: selectedComida.instruccionExtra,
       estado: 'pendiente',
       ingredientes: Object.keys(selectedVariants).map(key => ({
         ingrediente: selectedComida[key][selectedVariants[key]],
@@ -306,7 +307,7 @@ export default function Principal() {
               })}
             <Text style={styles.button} onPress={() => setSelectedComida(null)}>Volver</Text>
             <Text style={styles.button} onPress={() => setModalVisible(true)}>Agregar Ingrediente</Text>
-            <Text style={styles.button} onPress={calculateTotalPrice}>Pedir</Text>
+            <Text style={styles.button} onPress={calculateTotalPrice}>Realizar Pedido</Text>
             <Text style={styles.blueText} onPress={() => setVideoModalVisible(true)}>Ver Video</Text>
           </View>
 
@@ -415,7 +416,7 @@ export default function Principal() {
             <Text style={styles.modalTitle}>Total del Pedido</Text>
             <Text style={styles.modalText}>Total Price: ${totalPrice.toFixed(2)}</Text>
             <TouchableOpacity style={styles.modalButton} onPress={() => setTotalPriceModalVisible(false)}>
-              <Text style={styles.buttonText}>Cerrar</Text>
+              <Text style={styles.buttonText}>Aceptar</Text>
             </TouchableOpacity>
 
 

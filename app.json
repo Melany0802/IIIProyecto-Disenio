@@ -17,8 +17,8 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
-      },
-      "bundleIdentifier": "com.yourcompany.videomodalapp"
+      }
+      
     },
     "android": {
       "adaptiveIcon": {
